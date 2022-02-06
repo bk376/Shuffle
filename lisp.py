@@ -7,9 +7,32 @@ Symbol = str
 List = list
 Number = (int, float)
 
+
+class Env(dict):
+    """
+    An environment: a dict of 'var': val pairs with an outer Env
+    """
+    def __init__(self, params=(), args=(), outer=None):
+        self.update(zip(params, args))
+        self.outer = outer
+
+    def find(self, var):
+        return self if (var in self) else self.outer.find(var)
+
+
+class Procedure(object):
+    """ A user defined Lisp Procedure """
+    def __init__(self, params, body, env):
+        self.params, self.body, self.env = params, body, env
+
+    def __call__(self, *args):
+        return eval(self.body, Env(self.params, args, self.env))
+        
+
+
 def standard_env():
     # An environment with some Scheme standard procedures
-    env = {}
+    env = Env()
     env.update(vars(math))
     env.update({
         '+':op.add, '-':op.sub, '*':op.mul, '/':op.truediv, 
@@ -79,24 +102,32 @@ def atom(token):
 
 def eval(x, env=global_env):
     # Evaluate an expression in an environment
-    if isinstance(x, Symbol):
-        return env[x]  # variable reference
+    if isinstance(x, Symbol):# variable reference
+        return env.find(x)[x]
+        # return env[x]  
     elif not isinstance(x, List):  # constant literal
         return x
-    elif x[0] == 'quote':  # (quote exp)
-        (_, exp) = x
-        return exp
-    elif x[0] == 'if':
-        (_, test, conseq, alt) = x
+
+    op, *args = x 
+    if op == 'quote':  # (quote exp)
+        return args[0]
+    elif op == 'if':
+        (test, conseq, alt) = args
         exp = (conseq if eval(test, env) else alt)
         return eval(exp, env)
-    elif x[0] == 'define':
-        (_, var, exp) = x
-        env[var] = eval(exp, env)
+    elif op == 'define':
+        (symbol, exp) = args
+        env[symbol] = eval(exp, env)
+    elif op == 'set!':
+        (symbol, exp) = args
+        env.find(symbol)[symbol] = eval(exp, env)
+    elif op == 'lambda':
+        (params, body) = args
+        return Procedure(params, body, env)
     else:  # procedure call
-        proc = eval(x[0], env)
-        args = [eval(arg, env) for arg in x[1:]]
-        return proc(*args)
+        proc = eval(op, env)
+        vals = [eval(arg, env) for arg in args]
+        return proc(*vals)
 
 
 def repl(prompt='lisp>>= '):
@@ -114,16 +145,6 @@ def schemstr(exp):
     else:
         return str(exp)
 
-class Env(dict):
-    """
-    An environment: a dict of 'var': val pairs with an outer Env
-    """
-    def __init__(self, params=(), args=(), outer=None):
-        self.update(zip(params, args))
-        self.outer = outer
-
-    def find(self, var):
-        return self if (var in self) else self.outer.find(var)
 
 print(tokenize('(hello(55))'))
 program = "(begin (define r 10) (* pi (* r r)))"
