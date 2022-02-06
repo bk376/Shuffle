@@ -114,6 +114,17 @@ def schemstr(exp):
     else:
         return str(exp)
 
+class Env(dict):
+    """
+    An environment: a dict of 'var': val pairs with an outer Env
+    """
+    def __init__(self, params=(), args=(), outer=None):
+        self.update(zip(params, args))
+        self.outer = outer
+
+    def find(self, var):
+        return self if (var in self) else self.outer.find(var)
+
 print(tokenize('(hello(55))'))
 program = "(begin (define r 10) (* pi (* r r)))"
 print(parse(program))
